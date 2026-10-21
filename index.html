@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VogueStore | Sistema de Ventas E-commerce</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.90)),
+                        url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1920&q=80') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            color: #fff;
+        }
+        .navbar-glass {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            color: #1e293b;
+        }
+        .nav-pills .nav-link {
+            color: #64748b;
+            font-weight: 500;
+            border-radius: 12px;
+            padding: 10px 15px;
+            transition: all 0.3s ease;
+        }
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+        }
+        .input-group-text {
+            background-color: #f8fafc;
+            border-right: none;
+            color: #64748b;
+            border-radius: 12px 0 0 12px;
+        }
+        .form-control, .form-select {
+            border-left: none;
+            background-color: #f8fafc;
+            padding: 12px 15px;
+            border-radius: 0 12px 12px 0;
+        }
+        .form-control:focus, .form-select:focus {
+            box-shadow: none;
+            background-color: #fff;
+            border-color: #cbd5e1;
+        }
+        .btn-modern {
+            padding: 12px;
+            font-weight: 600;
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .btn-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+        .product-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: none;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            color: #1e293b;
+        }
+        .product-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.25);
+        }
+        .product-img-placeholder {
+            height: 140px;
+            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: #4f46e5;
+        }
+        .badge-stock {
+            background-color: #dcfce7;
+            color: #166534;
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- Barra de navegación -->
+<nav class="navbar navbar-expand-lg navbar-dark navbar-glass py-3 mb-4 sticky-top">
+    <div class="container">
+        <a class="navbar-brand fw-bold fs-4 d-flex align-items-center" href="#">
+            <i class="bi bi-bag-heart-fill text-warning me-2 fs-3"></i>
+            VogueStore <span class="badge bg-light text-dark ms-2 fs-6 fw-normal">POS & E-commerce</span>
+        </a>
+        <div id="navUserSection" class="hidden d-flex align-items-center gap-3">
+            <span class="text-light small d-none d-md-inline"><i class="bi bi-person-check-fill text-success me-1"></i> Conectado</span>
+            <button class="btn btn-warning btn-sm rounded-pill px-3 fw-semibold position-relative" onclick="hacerScrollCarrito()">
+                <i class="bi bi-cart3 me-1"></i> Mi Carrito
+                <span id="badgeCarrito" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">0</span>
+            </button>
+            <button class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="cerrarSesion()">
+                <i class="bi bi-box-arrow-right me-1"></i> Salir
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    
+    <!-- Notificación flotante -->
+    <div id="mensajeBox" class="alert hidden shadow-lg rounded-4 text-center mx-auto mb-4" style="max-width: 600px; font-weight: 500;"></div>
+
+    <!-- SECCIÓN 1: AUTENTICACIÓN -->
+    <div class="row justify-content-center align-items-center" id="authSection">
+        <div class="col-md-7 col-lg-5">
+            <div class="glass-card p-4 p-md-5">
+                <div class="text-center mb-4">
+                    <h3 class="fw-bold mb-1">Bienvenido</h3>
+                    <p class="text-muted small">Gestiona tus compras e inventario en un solo lugar</p>
+                </div>
+
+                <ul class="nav nav-pills nav-fill mb-4 bg-light p-1 rounded-4" id="authTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="tab-login" data-bs-toggle="pill" data-bs-target="#pane-login" type="button">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Entrar
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="tab-registro" data-bs-toggle="pill" data-bs-target="#pane-registro" type="button">
+                            <i class="bi bi-person-plus me-1"></i> Registro
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="tab-validar" data-bs-toggle="pill" data-bs-target="#pane-validar" type="button">
+                            <i class="bi bi-shield-check me-1"></i> Validar
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- LOGIN -->
+                    <div class="tab-pane fade show active" id="pane-login">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Correo Electrónico</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <input type="email" id="logCorreo" class="form-control" placeholder="ejemplo@correo.com">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-semibold text-secondary">Contraseña</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                <input type="password" id="logPassword" class="form-control" placeholder="••••••••">
+                            </div>
+                        </div>
+                        <button class="btn btn-success btn-modern w-100 text-white" onclick="login()">
+                            Iniciar Sesión <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+
+                    <!-- REGISTRO -->
+                    <div class="tab-pane fade" id="pane-registro">
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Nombre Completo</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" id="regNombre" class="form-control" placeholder="Tu nombre">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Correo Electrónico</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                <input type="email" id="regCorreo" class="form-control" placeholder="ejemplo@correo.com">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-semibold text-secondary">Contraseña</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                <input type="password" id="regPassword" class="form-control" placeholder="Crea una contraseña">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-modern w-100" onclick="registrar()">
+                            Crear Cuenta <i class="bi bi-check2-circle ms-1"></i>
+                        </button>
+                    </div>
+
+                    <!-- VALIDAR -->
+                    <div class="tab-pane fade" id="pane-validar">
+                        <div class="alert alert-warning small rounded-3 mb-3">
+                            <i class="bi bi-info-circle-fill me-1"></i> Código de prueba: <strong>123456</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold text-secondary">Correo a Validar</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-envelope-check"></i></span>
+                                <input type="email" id="valCorreo" class="form-control" placeholder="ejemplo@correo.com">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label small fw-semibold text-secondary">Código de Activación</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-123"></i></span>
+                                <input type="text" id="valCodigo" class="form-control" placeholder="123456">
+                            </div>
+                        </div>
+                        <button class="btn btn-warning btn-modern w-100 text-dark" onclick="validar()">
+                            Activar mi Cuenta <i class="bi bi-unlock-fill ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 2: TIENDA, CARRITO Y ÓRDENES -->
+    <div class="hidden" id="tiendaSection">
+        
+        <div class="row g-4">
+            <!-- COLUMNA IZQUIERDA: INVENTARIO Y CATÁLOGO (8 columnas) -->
+            <div class="col-lg-8">
+                
+                <!-- Panel Admin: Agregar Producto -->
+                <div class="glass-card p-4 mb-4">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle-fill text-primary me-2"></i>Agregar Nuevo Producto al Inventario</h6>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-tag"></i></span>
+                                <input type="text" id="prodNombre" class="form-control" placeholder="Nombre (Ej. Camisa Lino)">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" id="prodPrecio" class="form-control" placeholder="Precio">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-boxes"></i></span>
+                                <input type="number" id="prodStock" class="form-control" placeholder="Stock">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-dark btn-modern w-100 h-100 py-2" onclick="agregarProducto()">
+                                <i class="bi bi-plus-lg"></i> Guardar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Encabezado Catálogo -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold m-0"><i class="bi bi-shop me-2 text-warning"></i>Catálogo Disponible</h4>
+                    <button class="btn btn-light btn-sm rounded-pill px-3 shadow-sm" onclick="cargarProductos()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Actualizar
+                    </button>
+                </div>
+
+                <!-- Grid de Productos -->
+                <div class="row g-3" id="contenedorProductos"></div>
+
+            </div>
+
+            <!-- COLUMNA DERECHA: CARRITO, CHECKOUT Y MIS ÓRDENES (4 columnas) -->
+            <div class="col-lg-4" id="columnaCarrito">
+                
+                <!-- TARJETA 1: CARRITO Y CHECKOUT (CarritoService & OrdenService) -->
+                <div class="glass-card p-4 mb-4">
+                    <h5 class="fw-bold mb-3 d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-cart-check-fill text-primary me-2"></i>Mi Carrito</span>
+                        <span class="badge bg-primary rounded-pill fs-6" id="subtotalCarritoTxt">$0.00</span>
+                    </h5>
+                    
+                    <div id="listaCarrito" class="mb-3" style="max-height: 260px; overflow-y: auto;">
+                        <p class="text-muted small text-center my-4">Tu carrito está vacío</p>
+                    </div>
+
+                    <!-- Formulario de Checkout -->
+                    <div id="bloqueCheckout" class="border-top pt-3 hidden">
+                        <h6 class="fw-bold small text-uppercase text-secondary mb-2">Datos de Envío y Pago (Checkout)</h6>
+                        <div class="mb-2">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-geo-alt"></i></span>
+                                <input type="text" id="ordenDireccion" class="form-control" value="Av. 20 de Noviembre 123, Centro, Durango, Dgo.">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="bi bi-credit-card"></i></span>
+                                <select id="ordenMetodoPago" class="form-select">
+                                    <option value="tarjeta">Tarjeta de Crédito / Débito</option>
+                                    <option value="transferencia">Transferencia SPEI</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Costo de envío fijo:</span>
+                            <span>$100.00</span>
+                        </div>
+                        <div class="d-flex justify-content-between fw-bold mb-3 fs-5 text-dark">
+                            <span>Total a pagar:</span>
+                            <span id="totalOrdenTxt" class="text-success">$0.00</span>
+                        </div>
+                        <button class="btn btn-success btn-modern w-100" onclick="crearOrden()">
+                            <i class="bi bi-bag-check me-1"></i> Confirmar Pedido (Checkout)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TARJETA 2: MIS PEDIDOS Y WEBHOOK DE PAGO (OrdenService & PagoService) -->
+                <div class="glass-card p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold m-0"><i class="bi bi-receipt-cutoff text-warning me-2"></i>Mis Órdenes</h5>
+                        <button class="btn btn-outline-secondary btn-sm rounded-pill" onclick="cargarOrdenes()">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                    <div id="listaOrdenes" style="max-height: 350px; overflow-y: auto;">
+                        <p class="text-muted small text-center my-3">Aún no tienes pedidos registrados</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000/api/v1";
+    let jwtToken = null;
+
+    function mostrarMensaje(texto, tipo) {
+        const msgBox = document.getElementById('mensajeBox');
+        msgBox.className = `alert alert-${tipo} shadow-lg rounded-4 text-center mx-auto mb-4`;
+        msgBox.innerHTML = texto;
+        msgBox.classList.remove('hidden');
+        setTimeout(() => msgBox.classList.add('hidden'), 4000);
+    }
+
+    function cambiarPestana(tabId) {
+        const tabTrigger = document.getElementById(tabId);
+        const tab = new bootstrap.Tab(tabTrigger);
+        tab.show();
+    }
+
+    function hacerScrollCarrito() {
+        document.getElementById('columnaCarrito').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ==========================================
+    // FUNCIONES AUTH
+    // ==========================================
+    async function registrar() {
+        const correo = document.getElementById('regCorreo').value;
+        const payload = {
+            nombre: document.getElementById('regNombre').value,
+            correo: correo,
+            password: document.getElementById('regPassword').value
+        };
+        const res = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(res.ok) {
+            mostrarMensaje(`<i class="bi bi-check-circle-fill me-2"></i>${data.mensaje}. ¡Ahora valida tu cuenta!`, 'success');
+            document.getElementById('valCorreo').value = correo;
+            cambiarPestana('tab-validar');
+        } else {
+            mostrarMensaje(`<i class="bi bi-exclamation-triangle-fill me-2"></i>${data.detail}`, 'danger');
+        }
+    }
+
+    async function validar() {
+        const correo = document.getElementById('valCorreo').value;
+        const payload = {
+            correo: correo,
+            codigo_validacion: document.getElementById('valCodigo').value
+        };
+        const res = await fetch(`${API_URL}/auth/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(res.ok) {
+            mostrarMensaje(`<i class="bi bi-patch-check-fill me-2"></i>${data.mensaje}. Ya puedes iniciar sesión.`, 'success');
+            document.getElementById('logCorreo').value = correo;
+            cambiarPestana('tab-login');
+        } else {
+            mostrarMensaje(`<i class="bi bi-x-octagon-fill me-2"></i>${data.detail}`, 'danger');
+        }
+    }
+
+    async function login() {
+        const payload = {
+            correo: document.getElementById('logCorreo').value,
+            password: document.getElementById('logPassword').value
+        };
+        const res = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(res.ok) {
+            jwtToken = data.token;
+            mostrarMensaje('<i class="bi bi-stars me-2"></i>¡Bienvenido a VogueStore!', 'success');
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('tiendaSection').classList.remove('hidden');
+            document.getElementById('navUserSection').classList.remove('hidden');
+            cargarProductos();
+            cargarCarrito();
+            cargarOrdenes();
+        } else {
+            mostrarMensaje(`<i class="bi bi-lock-fill me-2"></i>${data.detail}`, 'danger');
+        }
+    }
+
+    function cerrarSesion() {
+        jwtToken = null;
+        document.getElementById('tiendaSection').classList.add('hidden');
+        document.getElementById('navUserSection').classList.add('hidden');
+        document.getElementById('authSection').classList.remove('hidden');
+        mostrarMensaje('Has cerrado sesión correctamente', 'info');
+    }
+
+    // ==========================================
+    // FUNCIONES CATÁLOGO (ProductoService)
+    // ==========================================
+    async function cargarProductos() {
+        const res = await fetch(`${API_URL}/products`);
+        const productos = await res.json();
+        const contenedor = document.getElementById('contenedorProductos');
+        contenedor.innerHTML = '';
+        
+        if(productos.length === 0) {
+            contenedor.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-box-seam display-3 text-light opacity-50"></i>
+                    <p class="mt-2 text-light">Aún no hay productos. ¡Agrega el primero arriba!</p>
+                </div>
+            `;
+            return;
+        }
+
+        productos.forEach(p => {
+            const sinStock = p.stock <= 0;
+            contenedor.innerHTML += `
+                <div class="col-sm-6 col-md-4">
+                    <div class="card product-card h-100 shadow">
+                        <div class="product-img-placeholder">
+                            <i class="bi bi-handbag"></i>
+                        </div>
+                        <div class="card-body d-flex flex-column p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary">${p.categoria || 'Moda'}</span>
+                                <span class="badge-stock ${sinStock ? 'bg-danger text-white' : ''}">
+                                    ${sinStock ? 'Agotado' : 'Stock: ' + p.stock}
+                                </span>
+                            </div>
+                            <h6 class="card-title fw-bold mb-1">${p.nombre}</h6>
+                            <p class="text-muted small mb-3">${p.descripcion || 'Prenda de temporada'}</p>
+                            <div class="mt-auto d-flex justify-content-between align-items-center pt-2 border-top">
+                                <span class="fs-5 fw-bold text-primary">$${p.precio.toFixed(2)}</span>
+                                <button class="btn btn-primary btn-sm rounded-pill px-3" 
+                                        onclick="agregarAlCarrito(${p.id})" ${sinStock ? 'disabled' : ''}>
+                                    <i class="bi bi-cart-plus me-1"></i> Añadir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function agregarProducto() {
+        const nombre = document.getElementById('prodNombre').value;
+        const precio = parseFloat(document.getElementById('prodPrecio').value);
+        const stock = parseInt(document.getElementById('prodStock').value);
+
+        if(!nombre || isNaN(precio) || isNaN(stock)) {
+            mostrarMensaje('Por favor completa todos los campos del producto', 'warning');
+            return;
+        }
+
+        const payload = {
+            nombre: nombre,
+            descripcion: "Prenda exclusiva de temporada",
+            precio: precio,
+            categoria: "Moda",
+            stock: stock
+        };
+        const res = await fetch(`${API_URL}/products`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if(res.ok) {
+            document.getElementById('prodNombre').value = '';
+            document.getElementById('prodPrecio').value = '';
+            document.getElementById('prodStock').value = '';
+            mostrarMensaje('<i class="bi bi-bag-check-fill me-2"></i>Producto guardado en MySQL', 'success');
+            cargarProductos();
+        }
+    }
+
+    // ==========================================
+    // FUNCIONES CARRITO (CarritoService)
+    // ==========================================
+    async function cargarCarrito() {
+        const res = await fetch(`${API_URL}/cart`, {
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        if(!res.ok) return;
+        const data = await res.json();
+        
+        const lista = document.getElementById('listaCarrito');
+        const bloqueCheckout = document.getElementById('bloqueCheckout');
+        const badge = document.getElementById('badgeCarrito');
+        
+        document.getElementById('subtotalCarritoTxt').innerText = `$${data.subtotal_carrito.toFixed(2)}`;
+        
+        let totalItems = 0;
+        data.items.forEach(i => totalItems += i.cantidad);
+        badge.innerText = totalItems;
+
+        if(data.items.length === 0) {
+            lista.innerHTML = `<p class="text-muted small text-center my-4">Tu carrito está vacío</p>`;
+            bloqueCheckout.classList.add('hidden');
+            return;
+        }
+
+        bloqueCheckout.classList.remove('hidden');
+        document.getElementById('totalOrdenTxt').innerText = `$${(data.subtotal_carrito + 100).toFixed(2)}`;
+
+        lista.innerHTML = '';
+        data.items.forEach(item => {
+            lista.innerHTML += `
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <div>
+                        <div class="fw-semibold small">${item.nombre}</div>
+                        <div class="text-muted" style="font-size: 0.78rem;">
+                            ${item.cantidad} x $${item.precio_unitario.toFixed(2)} = <strong>$${item.subtotal_item.toFixed(2)}</strong>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm border-0" onclick="eliminarDelCarrito(${item.product_id})">
+                        <i class="bi bi-trash3-fill"></i>
+                    </button>
+                </div>
+            `;
+        });
+    }
+
+    async function agregarAlCarrito(productId) {
+        const res = await fetch(`${API_URL}/cart/items`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({ product_id: productId, quantity: 1 })
+        });
+        const data = await res.json();
+        if(res.ok) {
+            mostrarMensaje(`<i class="bi bi-cart-plus-fill me-2"></i>${data.mensaje}`, 'success');
+            cargarCarrito();
+        } else {
+            mostrarMensaje(`<i class="bi bi-exclamation-circle-fill me-2"></i>${data.detail}`, 'warning');
+        }
+    }
+
+    async function eliminarDelCarrito(productId) {
+        const res = await fetch(`${API_URL}/cart/items/${productId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        if(res.ok) {
+            cargarCarrito();
+        }
+    }
+
+    // ==========================================
+    // FUNCIONES ÓRDENES Y PAGOS (OrdenService y PagoService)
+    // ==========================================
+    async function crearOrden() {
+        const direccion = document.getElementById('ordenDireccion').value;
+        const metodo = document.getElementById('ordenMetodoPago').value;
+
+        if(!direccion) {
+            mostrarMensaje('Ingresa una dirección de envío', 'warning');
+            return;
+        }
+
+        const res = await fetch(`${API_URL}/orders`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${jwtToken}`
+            },
+            body: JSON.stringify({ direccion_envio: direccion, metodo_pago: metodo })
+        });
+        const data = await res.json();
+        if(res.ok) {
+            mostrarMensaje(`<i class="bi bi-receipt me-2"></i>Orden #${data.order_id} creada por $${data.total.toFixed(2)}. ¡Ahora simula el pago abajo!`, 'success');
+            cargarCarrito();
+            cargarProductos(); // Refresca el stock descontado
+            cargarOrdenes();
+        } else {
+            mostrarMensaje(`<i class="bi bi-x-circle-fill me-2"></i>${data.detail}`, 'danger');
+        }
+    }
+
+    async function cargarOrdenes() {
+        const res = await fetch(`${API_URL}/orders`, {
+            headers: { 'Authorization': `Bearer ${jwtToken}` }
+        });
+        if(!res.ok) return;
+        const ordenes = await res.json();
+        const contenedor = document.getElementById('listaOrdenes');
+
+        if(ordenes.length === 0) {
+            contenedor.innerHTML = `<p class="text-muted small text-center my-3">Aún no tienes pedidos registrados</p>`;
+            return;
+        }
+
+        contenedor.innerHTML = '';
+        ordenes.forEach(o => {
+            const esPendiente = o.estado === 'PENDIENTE_PAGO';
+            const badgeColor = esPendiente ? 'bg-warning text-dark' : 'bg-success text-white';
+
+            contenedor.innerHTML += `
+                <div class="p-3 mb-2 rounded-3 bg-light border">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold">Orden #${o.order_id}</span>
+                        <span class="badge ${badgeColor}" style="font-size: 0.72rem;">${o.estado}</span>
+                    </div>
+                    <div class="small text-muted mb-1"><i class="bi bi-geo-alt me-1"></i>${o.direccion_envio}</div>
+                    <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                        <span class="fw-bold text-primary">Total: $${o.total.toFixed(2)}</span>
+                        ${esPendiente ? `
+                            <button class="btn btn-sm btn-dark rounded-pill px-3" onclick="simularWebhookPago(${o.order_id},${o.total})">
+                                <i class="bi bi-lightning-charge-fill text-warning me-1"></i>Simular Pago
+                            </button>
+                        ` : `
+                            <span class="small text-success fw-semibold"><i class="bi bi-truck me-1"></i>${o.guia_rastreo}</span>
+                        `}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    async function simularWebhookPago(orderId, monto) {
+        const payload = {
+            id_evento: "evt_" + Math.floor(Math.random() * 900000 + 100000),
+            tipo: "charge.succeeded",
+            data: {
+                order_id: orderId,
+                monto: monto,
+                status: "paid"
+            }
+        };
+
+        const res = await fetch(`${API_URL}/payments/webhook`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Webhook-Signature': 'v1=3f8a9b2c_firma_simulada'
+            },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if(res.ok) {
+            mostrarMensaje(`<i class="bi bi-check2-all me-2"></i>${data.mensaje}`, 'success');
+            cargarOrdenes();
+        }
+    }
+</script>
+</body>
+</html>
