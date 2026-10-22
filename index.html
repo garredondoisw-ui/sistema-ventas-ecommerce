@@ -208,7 +208,7 @@
                     <!-- VALIDAR -->
                     <div class="tab-pane fade" id="pane-validar">
                         <div class="alert alert-warning small rounded-3 mb-3">
-                            <i class="bi bi-info-circle-fill me-1"></i> Código de prueba: <strong>123456</strong>
+                            <i class="bi bi-info-circle-fill me-1"></i> Ingresa el código único de 6 dígitos enviado a tu correo (ver consola del servidor)
                         </div>
                         <div class="mb-3">
                             <label class="form-label small fw-semibold text-secondary">Correo a Validar</label>
@@ -221,7 +221,7 @@
                             <label class="form-label small fw-semibold text-secondary">Código de Activación</label>
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-123"></i></span>
-                                <input type="text" id="valCodigo" class="form-control" placeholder="123456">
+                                <input type="text" id="valCodigo" class="form-control" placeholder="Código de 6 dígitos">
                             </div>
                         </div>
                         <button class="btn btn-warning btn-modern w-100 text-dark" onclick="validar()">
@@ -518,18 +518,14 @@
             categoria: "Moda",
             stock: stock
         };
-        const res = await fetch(`${API_URL}/products`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        const res = await fetch(`${API_URL}/products`, { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` }, method: 'POST', body: JSON.stringify(payload) }); //
         if(res.ok) {
             document.getElementById('prodNombre').value = '';
             document.getElementById('prodPrecio').value = '';
             document.getElementById('prodStock').value = '';
             mostrarMensaje('<i class="bi bi-bag-check-fill me-2"></i>Producto guardado en MySQL', 'success');
             cargarProductos();
-        }
+        } else { const data = await res.json(); mostrarMensaje(`<i class="bi bi-shield-lock-fill me-2"></i>${data.detail}`, "danger"); }
     }
 
     // ==========================================
@@ -693,7 +689,7 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Webhook-Signature': 'v1=3f8a9b2c_firma_simulada'
+                'Webhook-Signature': 'v1=3f8a9b2c_firma_simulada', 'Authorization': `Bearer ${jwtToken}`
             },
             body: JSON.stringify(payload)
         });

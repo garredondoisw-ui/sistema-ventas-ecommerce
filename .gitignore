@@ -1,0 +1,25 @@
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+
+# Bases de datos locales y respaldos
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+
+# Caché de Python y entornos virtuales
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+
+# Archivos de sistema e IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

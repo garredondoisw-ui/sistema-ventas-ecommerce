@@ -1,4 +1,7 @@
 # servicios/usuario_service.py
+import secrets
+import hmac
+from werkzeug.security import generate_password_hash
 
 # Simulador de Base de Datos MySQL temporal
 db_usuarios = {}
@@ -7,13 +10,15 @@ class UsuarioService:
     @staticmethod
     def crear_usuario(datos):
         user_id = len(db_usuarios) + 1
+        codigo_generado = f"{secrets.randbelow(900000) + 100000:06d}"
         nuevo_usuario = {
             "id": user_id,
             "nombre": datos.nombre,
             "correo": datos.correo,
-            "password": datos.password, # En un entorno real, esto se guarda con Hash (ej. bcrypt)
+            "password": generate_password_hash(datos.password),
             "rol": "CLIENTE",
             "estado": "INACTIVO", # Requiere validación
+            "codigo_validacion": codigo_generado,
             "fecha_registro": "2026-10-01T07:31:00Z"
         }
         db_usuarios[user_id] = nuevo_usuario
@@ -32,9 +37,11 @@ class UsuarioService:
 
     @staticmethod
     def activar_cuenta(correo: str, codigo: str):
-        # Lógica de validación
+        # Lógica de validación con código dinámico por usuario
         usuario = UsuarioService.obtener_por_correo(correo)
-        if usuario and codigo == "123456": # Código quemado por ahora para pruebas
+        codigo_guardado = usuario.get("codigo_validacion") if usuario else None
+        if usuario and codigo_guardado and hmac.compare_digest(codigo_guardado, codigo.strip()):
             usuario["estado"] = "ACTIVO"
+            usuario["codigo_validacion"] = None
             return True
         return False

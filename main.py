@@ -2,15 +2,25 @@ from fastapi import FastAPI, HTTPException, Header, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, func
+from sqlalchemy import create_engine, Column, Integer, String, Float, func, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+import os
+import secrets
+import hmac
 import jwt
 from datetime import datetime, timedelta
+
+load_dotenv()
 
 # ==========================================
 # 1. CONFIGURACIÓN DE BASE DE DATOS (MySQL en XAMPP)
 # ==========================================
-SQLALCHEMY_DATABASE_URL = "mysql+pymysql://root:@localhost:3306/sistema_ventas"
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://root:@localhost:3306/sistema_ventas"
+)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -27,6 +37,7 @@ class UsuarioDB(Base):
     password = Column(String(255))
     rol = Column(String(50), default="CLIENTE")
     estado = Column(String(50), default="INACTIVO")
+    codigo_validacion = Column(String(20), nullable=True)
 
 class ProductoDB(Base):
     __tablename__ = "productos"
@@ -94,6 +105,13 @@ class EnvioDB(Base):
 # Crear todas las tablas en MySQL
 Base.metadata.create_all(bind=engine)
 
+# Asegurar que la columna codigo_validacion exista si la tabla ya fue creada previamente
+try:
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE usuarios ADD COLUMN codigo_validacion VARCHAR(20) NULL"))
+except Exception:
+    pass
+
 def get_db():
     db = SessionLocal()
     try:
@@ -114,8 +132,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SECRET_KEY = "mi_clave_super_secreta_para_ventas"
-ALGORITHM = "HS256"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Falta la variable de entorno crítica JWT_SECRET_KEY en el archivo .env")
+
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
 
 # ==========================================
 # 4. MODELOS PYDANTIC (Validación de Entradas)
@@ -124,7 +146,6 @@ class RegistroUsuario(BaseModel):
     nombre: str
     correo: str
     password: str
-    rol: Optional[str] = "CLIENTE"
 
 class LoginUsuario(BaseModel):
     correo: str
@@ -171,14 +192,28 @@ class EnvioActualizarEstado(BaseModel):
 # 5. CAPA DE SERVICIOS DE NEGOCIO
 # ==========================================
 
+class SecurityUtils:
+    @staticmethod
+    def hash_password(password: str) -> str:
+        return generate_password_hash(password)
+
+    @staticmethod
+    def verify_password(stored_password: str, provided_password: str) -> bool:
+        if not stored_password:
+            return False
+        # Verificar si es un hash generado por Werkzeug (pbkdf2 / scrypt)
+        if stored_password.startswith(("scrypt:", "pbkdf2:")):
+            return check_password_hash(stored_password, provided_password)
+        return False
+
+
 class AuthService:
     @staticmethod
     def iniciar_sesion(db: Session, credenciales: LoginUsuario):
         user = db.query(UsuarioDB).filter(
-            UsuarioDB.correo == credenciales.correo,
-            UsuarioDB.password == credenciales.password
+            UsuarioDB.correo == credenciales.correo
         ).first()
-        if not user:
+        if not user or not SecurityUtils.verify_password(user.password, credenciales.password):
             raise HTTPException(status_code=401, detail="Credenciales incorrectas")
         if user.estado != "ACTIVO":
             raise HTTPException(status_code=403, detail="Cuenta inactiva. Valide su cuenta.")
@@ -217,6 +252,20 @@ class AuthService:
             )
         return int(payload.get("sub"))
 
+    @staticmethod
+    def verificar_webhook(webhook_signature: Optional[str], authorization: Optional[str]) -> None:
+        # Permite autenticar el webhook mediante firma compartida (Webhook-Signature) o JWT válido
+        if webhook_signature and WEBHOOK_SECRET:
+            if hmac.compare_digest(webhook_signature, WEBHOOK_SECRET):
+                return
+        if authorization:
+            AuthService.decodificar_payload(authorization)
+            return
+        raise HTTPException(
+            status_code=401,
+            detail="No autorizado: Se requiere firma de webhook válida o token de autenticación"
+        )
+
 
 def obtener_usuario_actual_id(authorization: Optional[str]) -> int:
     return AuthService.decodificar_token(authorization)
@@ -228,25 +277,43 @@ class UsuarioService:
         if db.query(UsuarioDB).filter(UsuarioDB.correo == datos.correo).first():
             raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
-        rol_asignado = datos.rol.upper() if datos.rol else "CLIENTE"
+        codigo_generado = f"{secrets.randbelow(900000) + 100000:06d}"
+        password_hasheado = SecurityUtils.hash_password(datos.password)
+
+        # El registro público asigna estrictamente el rol CLIENTE (evita escalación de privilegios)
         nuevo_user = UsuarioDB(
             nombre=datos.nombre,
             correo=datos.correo,
-            password=datos.password,
-            rol=rol_asignado
+            password=password_hasheado,
+            rol="CLIENTE",
+            estado="INACTIVO",
+            codigo_validacion=codigo_generado
         )
         db.add(nuevo_user)
         db.commit()
         db.refresh(nuevo_user)
-        return {"id": nuevo_user.id, "rol": nuevo_user.rol, "mensaje": "Usuario registrado exitosamente"}
+
+        NotificacionService.enviar_correo(
+            db=db,
+            usuario_id=nuevo_user.id,
+            asunto="Código de Validación de Cuenta",
+            mensaje=f"Bienvenido {nuevo_user.nombre}. Tu código de activación es: {codigo_generado}"
+        )
+
+        return {
+            "id": nuevo_user.id,
+            "rol": nuevo_user.rol,
+            "mensaje": "Usuario registrado exitosamente. Revisa tu notificación de correo para obtener el código de validación."
+        }
 
     @staticmethod
     def validar_cuenta(db: Session, datos: ValidacionUsuario):
         user = db.query(UsuarioDB).filter(UsuarioDB.correo == datos.correo).first()
-        if not user or datos.codigo_validacion != "123456":
+        if not user or not user.codigo_validacion or not hmac.compare_digest(user.codigo_validacion, datos.codigo_validacion.strip()):
             raise HTTPException(status_code=400, detail="Código incorrecto o usuario no encontrado")
 
         user.estado = "ACTIVO"
+        user.codigo_validacion = None
         db.commit()
         return {"mensaje": "Cuenta validada y activada exitosamente", "estado": "ACTIVO"}
 
@@ -337,16 +404,19 @@ class NotificacionService:
 
         # Impresión formateada en la consola del servidor
         borde = "=" * 65
-        print(f"\n{borde}")
-        print("📧 [NOTIFICACIÓN POR CORREO SIMULADA - SISTEMA DE VENTAS]")
-        print(borde)
-        print(f"  ID Notificación : #{nueva_notificacion.id}")
-        print(f"  Fecha (UTC)     : {fecha_actual}")
-        print(f"  Para            : {destinatario}")
-        print(f"  Asunto (Tipo)   : {asunto}")
-        print("-" * 65)
-        print(f"  Mensaje:\n  {mensaje}")
-        print(f"{borde}\n")
+        try:
+            print(f"\n{borde}")
+            print("[NOTIFICACION POR CORREO SIMULADA - SISTEMA DE VENTAS]")
+            print(borde)
+            print(f"  ID Notificacion : #{nueva_notificacion.id}")
+            print(f"  Fecha (UTC)     : {fecha_actual}")
+            print(f"  Para            : {destinatario}")
+            print(f"  Asunto (Tipo)   : {asunto}")
+            print("-" * 65)
+            print(f"  Mensaje:\n  {mensaje}")
+            print(f"{borde}\n")
+        except UnicodeEncodeError:
+            pass
 
         return nueva_notificacion
 
@@ -768,11 +838,22 @@ async def obtener_producto(id: int, db: Session = Depends(get_db)):
     return ProductoService.obtener_producto(db, id)
 
 @app.post("/api/v1/products", status_code=201, tags=["Catálogo"])
-async def crear_producto(producto: ProductoCrear, db: Session = Depends(get_db)):
+async def crear_producto(
+    producto: ProductoCrear,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    AuthService.verificar_admin(authorization)
     return ProductoService.crear_producto(db, producto)
 
 @app.put("/api/v1/products/{id}", tags=["Catálogo"])
-async def actualizar_producto(id: int, datos: ProductoActualizar, db: Session = Depends(get_db)):
+async def actualizar_producto(
+    id: int,
+    datos: ProductoActualizar,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    AuthService.verificar_admin(authorization)
     return ProductoService.actualizar_producto(db, id, datos)
 
 # ==========================================
@@ -812,7 +893,13 @@ async def consultar_orden(id: int, authorization: Optional[str] = Header(None), 
     return OrdenService.consultar_orden(db, id, user_id)
 
 @app.post("/api/v1/payments/webhook", tags=["Órdenes y Pagos"])
-async def webhook_pagos(payload: WebhookPago, webhook_signature: Optional[str] = Header(None), db: Session = Depends(get_db)):
+async def webhook_pagos(
+    payload: WebhookPago,
+    webhook_signature: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db)
+):
+    AuthService.verificar_webhook(webhook_signature, authorization)
     return PagoService.procesar_webhook(db, payload)
 
 # ==========================================
@@ -826,8 +913,10 @@ async def consultar_envio(orden_id: int, db: Session = Depends(get_db)):
 async def actualizar_estado_envio(
     orden_id: int,
     datos: Optional[EnvioActualizarEstado] = Body(default=None),
+    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
+    AuthService.verificar_admin(authorization)
     return EnvioService.actualizar_estado_envio(db, orden_id, datos)
 
 # ==========================================

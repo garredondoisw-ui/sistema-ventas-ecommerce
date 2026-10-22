@@ -1,17 +1,25 @@
 # servicios/auth_service.py
+import os
 import jwt
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from werkzeug.security import check_password_hash
 from servicios.usuario_service import UsuarioService
 
-SECRET_KEY = "mi_clave_super_secreta_para_ventas"
-ALGORITHM = "HS256"
+load_dotenv()
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("Falta la variable de entorno crítica JWT_SECRET_KEY en el archivo .env")
+
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
 class AuthService:
     @staticmethod
     def validar_credenciales(correo: str, password: str):
         usuario = UsuarioService.obtener_por_correo(correo)
-        # Validación de contraseña plana (en producción usar passlib/bcrypt)
-        if usuario and usuario["password"] == password:
+        # Validación de contraseña mediante hash seguro (pbkdf2 / scrypt)
+        if usuario and check_password_hash(usuario["password"], password):
             return usuario
         return None
 
